@@ -1,0 +1,31 @@
+name: Portfolio Monitor
+
+on:
+  schedule:
+    - cron: '30 13 * * 1-5'
+    - cron: '0,30 14-20 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  run-portfolio-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run portfolio monitor
+        env:
+          CLAUDE_API_KEY:          ${{ secrets.CLAUDE_API_KEY }}
+          TWELVE_DATA_API_KEY:     ${{ secrets.TWELVE_DATA_API_KEY }}
+          DISCORD_WEBHOOK_URL:     ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GOOGLE_SHEET_ID:         ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        run: python main.py
