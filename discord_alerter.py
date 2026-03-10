@@ -14,7 +14,9 @@ def send_discord_message(content):
 
 def send_alert_report(alerts, claude_summary, portfolio, market_data,
                       wheel_recommendations=None):
-    now = datetime.now().strftime("%B %d, %Y at %I:%M %p")
+    from datetime import timezone, timedelta
+eastern = timezone(timedelta(hours=-4))  # EDT (use -5 for EST in winter)
+now = datetime.now(eastern).strftime("%B %d, %Y at %I:%M %p ET")
 
     # ── Header ──────────────────────────────────────────────
     send_discord_message(f"📊 **Portfolio Monitor Report** — {now}")
