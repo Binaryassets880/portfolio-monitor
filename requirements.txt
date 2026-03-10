@@ -1,0 +1,7 @@
+anthropic
+gspread
+google-auth
+requests
+numpy
+scipy
+tastytrade
