@@ -4,7 +4,6 @@
 
 import anthropic
 import config
-import json
 
 def get_claude_analysis(portfolio, market_data, alerts):
     """
@@ -13,7 +12,6 @@ def get_claude_analysis(portfolio, market_data, alerts):
     """
     client = anthropic.Anthropic(api_key=config.CLAUDE_API_KEY)
 
-    # Build a clean summary of current positions to send to Claude
     position_summary = []
     for stock in portfolio:
         symbol = stock["symbol"]
@@ -22,12 +20,12 @@ def get_claude_analysis(portfolio, market_data, alerts):
             entry   = stock["entry"]
             current = data["price"]
             pct     = ((current - entry) / entry * 100) if entry else 0
-          rsi = data.get("rsi", "N/A")
+            rsi = data.get("rsi", "N/A")
             rsi_display = f"{rsi:.1f}" if isinstance(rsi, float) else str(rsi)
             position_summary.append(
-            f"- {symbol}: Entry ${entry:.2f} | Current ${current:.2f} | "
-            f"{'▲' if pct >= 0 else '▼'}{abs(pct):.1f}% | RSI: {rsi_display}"
-        )
+                f"- {symbol}: Entry ${entry:.2f} | Current ${current:.2f} | "
+                f"{'▲' if pct >= 0 else '▼'}{abs(pct):.1f}% | RSI: {rsi_display}"
+            )
 
     alert_summary = [a["message"] for a in alerts] if alerts else ["No alerts triggered this cycle."]
 
