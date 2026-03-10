@@ -1,0 +1,48 @@
+# ============================================================
+# .github/workflows/monitor.yml
+# ============================================================
+# This tells GitHub to run your portfolio agent automatically.
+# Schedule: Every 30 minutes, Monday–Friday, 9:30am–4pm EST
+# (GitHub Actions uses UTC — EST is UTC-5)
+
+name: Portfolio Monitor
+
+on:
+  schedule:
+    # Runs at :00 and :30 past the hour
+    # 14:30 UTC = 9:30 AM EST  |  21:00 UTC = 4:00 PM EST
+    - cron: '0,30 14-20 * * 1-5'
+    - cron: '30 13 * * 1-5'   # 9:30 AM EST (13:30 UTC)
+  
+  # Also allows you to trigger it manually from GitHub's website
+  workflow_dispatch:
+
+jobs:
+  run-portfolio-monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Download your repo's code onto GitHub's server
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Install required Python packages
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step 4: Run the agent
+      # The secrets are pulled from your GitHub repo's Secret settings
+      - name: Run portfolio monitor
+        env:
+          CLAUDE_API_KEY:          ${{ secrets.CLAUDE_API_KEY }}
+          TWELVE_DATA_API_KEY:     ${{ secrets.TWELVE_DATA_API_KEY }}
+          DISCORD_WEBHOOK_URL:     ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GOOGLE_SHEET_ID:         ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        run: python main.py
