@@ -186,15 +186,18 @@ def find_best_wheel_option(session, symbol, current_price,
                             max_dte=60,
                             risk_free_rate=0.045):
     """
-    Synchronous wrapper — wheel_evaluator.py calls this directly.
-    Internally runs the async chain fetch via asyncio.run().
+    Synchronous wrapper — creates a fresh event loop each call
+    to avoid 'Event loop is closed' errors on multiple symbols.
     """
-    return asyncio.run(
-        _find_best_async(
-            session, symbol, current_price, option_type,
-            cost_basis, target_delta_min, target_delta_max,
-            min_dte, max_dte, risk_free_rate
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(
+            _find_best_async(
+                session, symbol, current_price, option_type,
+                cost_basis, target_delta_min, target_delta_max,
+                min_dte, max_dte, risk_free_rate
+            )
         )
-    )
- finally:
+    finally:
         loop.close()
