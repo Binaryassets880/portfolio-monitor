@@ -7,16 +7,42 @@ import config
 from datetime import datetime
 
 def send_discord_message(content):
-    payload = {"content": content}
-    response = requests.post(config.DISCORD_WEBHOOK_URL, json=payload)
-    if response.status_code not in (200, 204):
-        print(f"  Discord error: {response.status_code} — {response.text}")
+    """
+    Send a message to Discord. If it exceeds 1900 chars, split it into chunks
+    so we never hit Discord's 2000-character limit.
+    """
+    LIMIT = 1900  # Buffer below Discord's hard 2000-char limit
+
+    if len(content) <= LIMIT:
+        payload  = {"content": content}
+        response = requests.post(config.DISCORD_WEBHOOK_URL, json=payload)
+        if response.status_code not in (200, 204):
+            print(f"  Discord error: {response.status_code} — ***{response.text}***")
+        return
+
+    # Split on newlines to keep chunks readable
+    lines = content.split("\n")
+    chunk = ""
+    for line in lines:
+        test = chunk + ("\n" if chunk else "") + line
+        if len(test) > LIMIT:
+            payload  = {"content": chunk}
+            response = requests.post(config.DISCORD_WEBHOOK_URL, json=payload)
+            if response.status_code not in (200, 204):
+                print(f"  Discord error: {response.status_code} — ***{response.text}***")
+            chunk = line
+        else:
+            chunk = test
+
+    if chunk:
+        payload  = {"content": chunk}
+        response = requests.post(config.DISCORD_WEBHOOK_URL, json=payload)
+        if response.status_code not in (200, 204):
+            print(f"  Discord error: {response.status_code} — ***{response.text}***")
 
 def send_alert_report(alerts, claude_summary, portfolio, market_data,
                       wheel_recommendations=None):
-    from datetime import timezone, timedelta
-    eastern = timezone(timedelta(hours=-4))  # EDT (change to -5 in winter)
-    now = datetime.now(eastern).strftime("%B %d, %Y at %I:%M %p ET")
+    now = datetime.now().strftime("%B %d, %Y at %I:%M %p")
 
     # ── Header ──────────────────────────────────────────────
     send_discord_message(f"📊 **Portfolio Monitor Report** — {now}")
