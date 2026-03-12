@@ -177,7 +177,7 @@ async def _find_best_async(session, symbol, current_price, option_type,
     return candidates[:5]
 
 
-def find_best_wheel_option(session, symbol, current_price,
+async def find_best_wheel_option_async(session, symbol, current_price,
                             option_type,
                             cost_basis=None,
                             target_delta_min=0.20,
@@ -185,19 +185,9 @@ def find_best_wheel_option(session, symbol, current_price,
                             min_dte=21,
                             max_dte=60,
                             risk_free_rate=0.045):
-    """
-    Synchronous wrapper — creates a fresh event loop each call
-    to avoid 'Event loop is closed' errors on multiple symbols.
-    """
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(
-            _find_best_async(
-                session, symbol, current_price, option_type,
-                cost_basis, target_delta_min, target_delta_max,
-                min_dte, max_dte, risk_free_rate
-            )
-        )
-    finally:
-        loop.close()
+    """Async version — called directly from wheel_evaluator."""
+    return await _find_best_async(
+        session, symbol, current_price, option_type,
+        cost_basis, target_delta_min, target_delta_max,
+        min_dte, max_dte, risk_free_rate
+    )
