@@ -196,3 +196,5 @@ def find_best_wheel_option(session, symbol, current_price,
             min_dte, max_dte, risk_free_rate
         )
     )
+ finally:
+        loop.close()
