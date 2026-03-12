@@ -177,30 +177,55 @@ async def _find_best_async(session, symbol, current_price, option_type,
     return candidates[:5]
 
 
-def find_best_wheel_option(session, symbol, current_price,
-                            option_type,
-                            cost_basis=None,
-                            target_delta_min=0.20,
-                            target_delta_max=0.25,
-                            min_dte=21,
-                            max_dte=60,
-                            risk_free_rate=0.045):
+async def _find_all_async(session, requests, risk_free_rate=0.045):
     """
-    Synchronous wrapper — wheel_evaluator.py calls this directly.
-    Uses a new event loop each time to avoid "Event loop is closed" errors
-    on Windows when called multiple times in sequence.
+    Batch async function — processes multiple option requests in one event loop.
+    This avoids the "Event loop is closed" error on Windows by keeping all
+    async operations within a single asyncio.run() call.
+
+    Args:
+        session: Tastytrade session
+        requests: List of dicts with keys: symbol, current_price, option_type,
+                  cost_basis, target_delta_min, target_delta_max, min_dte, max_dte
+
+    Returns:
+        Dict mapping symbol to candidates list
     """
-    # Create a fresh event loop for each call to avoid Windows asyncio issues
-    # where asyncio.run() closes the loop and subsequent calls fail
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(
-            _find_best_async(
-                session, symbol, current_price, option_type,
-                cost_basis, target_delta_min, target_delta_max,
-                min_dte, max_dte, risk_free_rate
+    results = {}
+    for req in requests:
+        symbol = req["symbol"]
+        try:
+            candidates = await _find_best_async(
+                session,
+                symbol,
+                req["current_price"],
+                req["option_type"],
+                req.get("cost_basis"),
+                req.get("target_delta_min", 0.20),
+                req.get("target_delta_max", 0.25),
+                req.get("min_dte", 21),
+                req.get("max_dte", 60),
+                risk_free_rate
             )
-        )
-    finally:
-        loop.close()
+            results[symbol] = candidates
+        except Exception as e:
+            print(f"    Error fetching options for {symbol}: {e}")
+            results[symbol] = []
+    return results
+
+
+def find_best_wheel_options_batch(session, requests):
+    """
+    Synchronous batch wrapper — fetches options for multiple symbols in one go.
+    Uses a single asyncio.run() to avoid event loop issues on Windows.
+
+    Args:
+        session: Tastytrade session
+        requests: List of request dicts (see _find_all_async for format)
+
+    Returns:
+        Dict mapping symbol to candidates list
+    """
+    if not requests:
+        return {}
+    return asyncio.run(_find_all_async(session, requests))

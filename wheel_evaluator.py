@@ -21,11 +21,17 @@ def evaluate_wheel_positions(wheel_positions, market_data, session):
     """
     recommendations = []
 
+    # ── Step 1: Collect all positions that need option lookups ──
+    # This batches all async API calls into one asyncio.run() to avoid
+    # the "Event loop is closed" error on Windows.
+    option_requests = []
+    positions_needing_options = []
+
     for position in wheel_positions:
-        symbol    = position["symbol"]
-        phase     = position["phase"]
-        data      = market_data.get(symbol, {})
-        price     = data.get("price")
+        symbol = position["symbol"]
+        phase  = position["phase"]
+        data   = market_data.get(symbol, {})
+        price  = data.get("price")
 
         if not price:
             print(f"    No price data for {symbol}, skipping wheel evaluation")
@@ -33,25 +39,71 @@ def evaluate_wheel_positions(wheel_positions, market_data, session):
 
         print(f"  Evaluating {symbol} [{phase}] @ ${price:.2f}")
 
-        # ── WATCHING: Find best CSP to sell ─────────────────
+        # Only Watching and Assigned phases need option chain lookups
         if phase == "Watching":
-            rec = _evaluate_watching(position, price, session)
+            option_requests.append({
+                "symbol":           symbol,
+                "current_price":    price,
+                "option_type":      "P",  # Looking for puts
+                "cost_basis":       None,
+                "target_delta_min": config.WHEEL_DELTA_MIN,
+                "target_delta_max": config.WHEEL_DELTA_MAX,
+                "min_dte":          config.WHEEL_MIN_DTE,
+                "max_dte":          config.WHEEL_MAX_DTE,
+            })
+            positions_needing_options.append((position, price, phase))
+
+        elif phase == "Assigned":
+            cost_basis = position.get("cost_basis", 0)
+            if cost_basis <= 0:
+                cost_basis = price
+            option_requests.append({
+                "symbol":           symbol,
+                "current_price":    price,
+                "option_type":      "C",  # Looking for calls
+                "cost_basis":       cost_basis,
+                "target_delta_min": config.WHEEL_DELTA_MIN,
+                "target_delta_max": config.WHEEL_DELTA_MAX,
+                "min_dte":          config.WHEEL_MIN_DTE,
+                "max_dte":          config.WHEEL_MAX_DTE,
+            })
+            positions_needing_options.append((position, price, phase))
+
+    # ── Step 2: Batch fetch all option chains in one asyncio.run() ──
+    if option_requests:
+        option_results = options_fetcher.find_best_wheel_options_batch(
+            session, option_requests
+        )
+    else:
+        option_results = {}
+
+    # ── Step 3: Build recommendations using cached results ──
+    for position in wheel_positions:
+        symbol = position["symbol"]
+        phase  = position["phase"]
+        data   = market_data.get(symbol, {})
+        price  = data.get("price")
+
+        if not price:
+            continue
+
+        if phase == "Watching":
+            candidates = option_results.get(symbol, [])
+            rec = _build_watching_recommendation(position, price, candidates)
             if rec:
                 recommendations.append(rec)
 
-        # ── CSP OPEN: Monitor existing put ──────────────────
         elif phase == "CSP Open":
             rec = _evaluate_csp_open(position, price)
             if rec:
                 recommendations.append(rec)
 
-        # ── ASSIGNED: Was assigned shares, find best CC ──────
         elif phase == "Assigned":
-            rec = _evaluate_assigned(position, price, session)
+            candidates = option_results.get(symbol, [])
+            rec = _build_assigned_recommendation(position, price, candidates)
             if rec:
                 recommendations.append(rec)
 
-        # ── CC OPEN: Monitor existing covered call ───────────
         elif phase == "CC Open":
             rec = _evaluate_cc_open(position, price)
             if rec:
@@ -62,20 +114,9 @@ def evaluate_wheel_positions(wheel_positions, market_data, session):
 
 # ── Phase Evaluators ─────────────────────────────────────────
 
-def _evaluate_watching(position, current_price, session):
-    """Looking for a good CSP entry point."""
+def _build_watching_recommendation(position, current_price, candidates):
+    """Build recommendation for Watching phase using pre-fetched candidates."""
     symbol = position["symbol"]
-
-    candidates = options_fetcher.find_best_wheel_option(
-        session  = session,
-        symbol         = symbol,
-        current_price  = current_price,
-        option_type    = "P",
-        target_delta_min = config.WHEEL_DELTA_MIN,
-        target_delta_max = config.WHEEL_DELTA_MAX,
-        min_dte          = config.WHEEL_MIN_DTE,
-        max_dte          = config.WHEEL_MAX_DTE,
-    )
 
     if not candidates:
         return {
@@ -159,8 +200,8 @@ def _evaluate_csp_open(position, current_price):
     }
 
 
-def _evaluate_assigned(position, current_price, session):
-    """Was assigned shares — find best covered call to sell."""
+def _build_assigned_recommendation(position, current_price, candidates):
+    """Build recommendation for Assigned phase using pre-fetched candidates."""
     symbol      = position["symbol"]
     cost_basis  = position.get("cost_basis", 0)
 
@@ -174,19 +215,6 @@ def _evaluate_assigned(position, current_price, session):
         f"Cost basis: ${cost_basis:.2f} | Current: ${current_price:.2f} | "
         f"{'Profit' if current_price >= cost_basis else 'Loss'} if called away: "
         f"{abs(profit_if_called):.1f}%\n"
-    )
-
-    # Find best CC to sell
-    candidates = options_fetcher.find_best_wheel_option(
-        session    = session,
-        symbol           = symbol,
-        current_price    = current_price,
-        option_type      = "C",
-        cost_basis       = cost_basis,
-        target_delta_min = config.WHEEL_DELTA_MIN,
-        target_delta_max = config.WHEEL_DELTA_MAX,
-        min_dte          = config.WHEEL_MIN_DTE,
-        max_dte          = config.WHEEL_MAX_DTE,
     )
 
     if not candidates:
