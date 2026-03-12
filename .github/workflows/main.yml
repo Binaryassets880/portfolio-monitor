@@ -28,4 +28,7 @@ jobs:
           DISCORD_WEBHOOK_URL:     ${{ secrets.DISCORD_WEBHOOK_URL }}
           GOOGLE_SHEET_ID:         ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+          TASTYTRADE_CLIENT_ID:        ${{ secrets.TASTYTRADE_CLIENT_ID }}
+          TASTYTRADE_CLIENT_SECRET:    ${{ secrets.TASTYTRADE_CLIENT_SECRET }}
+          TASTYTRADE_REFRESH_TOKEN:    ${{ secrets.TASTYTRADE_REFRESH_TOKEN }}
         run: python main.py
