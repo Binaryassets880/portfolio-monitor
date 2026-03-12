@@ -7,7 +7,7 @@ import config
 from datetime import datetime
 
 def send_discord_message(content):
-    payload  = {"content": content}
+    payload = {"content": content}
     response = requests.post(config.DISCORD_WEBHOOK_URL, json=payload)
     if response.status_code not in (200, 204):
         print(f"  Discord error: {response.status_code} — {response.text}")
@@ -15,8 +15,8 @@ def send_discord_message(content):
 def send_alert_report(alerts, claude_summary, portfolio, market_data,
                       wheel_recommendations=None):
     from datetime import timezone, timedelta
-eastern = timezone(timedelta(hours=-4))  # EDT (use -5 for EST in winter)
-now = datetime.now(eastern).strftime("%B %d, %Y at %I:%M %p ET")
+    eastern = timezone(timedelta(hours=-4))  # EDT (change to -5 in winter)
+    now = datetime.now(eastern).strftime("%B %d, %Y at %I:%M %p ET")
 
     # ── Header ──────────────────────────────────────────────
     send_discord_message(f"📊 **Portfolio Monitor Report** — {now}")
